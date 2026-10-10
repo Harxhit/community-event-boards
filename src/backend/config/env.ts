@@ -3,10 +3,11 @@ import "server-only";
 interface Config {
   node_env : string
   databaseUrl: string;
-  // jwtSecret: string;
-  // adminEmail: string;
-  // adminPassword: string;
+  jwtSecret: string;
+  adminEmail: string;
+  adminPassword: string;
 }
+
 
 const loadConfig = (): Config => {
   const databaseUrl = process.env.MONGODB_URI;
@@ -23,20 +24,20 @@ const loadConfig = (): Config => {
     throw new Error("MONGODB_URI is missing");
   }
 
-  // if (!jwtSecret || jwtSecret.length < 32) {
-  //   throw new Error("JWT_SECRET must be at least 32 characters");
-  // }
+  if (!jwtSecret || jwtSecret.length < 32) {
+    throw new Error("JWT_SECRET must be at least 32 characters");
+  }
 
-  // if (!adminEmail?.trim() || !adminPassword?.trim()) {
-  //   throw new Error("Admin credentials are missing");
-  // }
+  if (!adminEmail?.trim() || !adminPassword?.trim()) {
+    throw new Error("Admin credentials are missing");
+  }
 
   return {
     databaseUrl,
-    // jwtSecret,
-    // adminEmail,
-    // adminPassword,
-    node_env
+    jwtSecret,
+    adminEmail,
+    adminPassword,
+    node_env, 
   };
 };
 
