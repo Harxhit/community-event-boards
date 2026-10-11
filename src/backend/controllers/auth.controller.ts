@@ -69,10 +69,6 @@ export const signIn = async (request: Request): Promise<Response> => {
             message: "User signed it", 
             data: {
                 userId: user.id, 
-                email: user.email, 
-                profileImage: user.profileImage, 
-                name: user.name,
-                role: user.role, 
                 jwtToken: token   //due to requirements i have return jwt
             }
         }, {
@@ -177,10 +173,6 @@ export const signUp = async (request: Request): Promise<Response> => {
             message: "User signed up", 
             data: {
                 userId: user.id, 
-                email: user.email, 
-                profileImage: user.profileImage, 
-                name: user.name,
-                role: user.role, 
                 jwtToken: token   //due to requirements i have return jwt
             }
         }, {
