@@ -16,8 +16,8 @@ export default function HomeNavigation() {
         <Link href="/#categories" className="text-sm text-[#a8b0a9] hover:text-[#f1f1eb]">
           Categories
         </Link>
-        <Link href="/#how-it-works" className="text-sm text-[#a8b0a9] hover:text-[#f1f1eb]">
-          How it works
+        <Link href="/events" className="text-sm text-[#a8b0a9] hover:text-[#f1f1eb]">
+          Browse events
         </Link>
       </nav>
 

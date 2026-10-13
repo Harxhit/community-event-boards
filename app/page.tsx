@@ -130,10 +130,10 @@ export default function HomePage() {
               </Link>
 
               <Link
-                href="#categories"
+                href="/events"
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-[#454d43] px-5 text-sm font-medium text-[#e5e7df] transition hover:border-[#a5b185]/60 hover:bg-white/[0.03]"
               >
-                Explore categories
+                Browse all events
               </Link>
             </div>
 
@@ -205,9 +205,9 @@ export default function HomePage() {
                   );
                 })}
               </div>
-
+              {/* TODO: Need to work here */}
               <Link
-                href="/signup"
+                href="/feed"
                 className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-[#bdc99b] transition hover:text-[#e0e8cc]"
               >
                 Find your next experience
@@ -351,10 +351,10 @@ export default function HomePage() {
                   Categories
                 </Link>
                 <Link
-                  href="#how-it-works"
+                  href="/events"
                   className="text-sm text-[#929a93] transition hover:text-[#c4d0a4]"
                 >
-                  How it works
+                  Browse events
                 </Link>
               </div>
             </div>

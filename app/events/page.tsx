@@ -1,0 +1,434 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import axios from "axios";
+import Link from "next/link";
+import {
+  ArrowLeft,
+  CalendarDays,
+  MapPin,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  X,
+} from "lucide-react";
+
+interface EventItem {
+  _id: string;
+  title: string;
+  category: "Music" | "Workshop" | "Food" | "Sports" | "Kids";
+  city: string;
+  date: string;
+  price: number;
+  description: string;
+  imageUrl: string;
+}
+
+interface EventsResponse {
+  success: boolean;
+  message: string;
+  events: EventItem[];
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+const PAGE_SIZE = 10;
+
+function Logo() {
+  return (
+    <Link
+      href="/"
+      aria-label="Gather homepage"
+      className="inline-flex items-center gap-3 transition hover:opacity-80"
+    >
+      <div className="grid h-10 w-10 grid-cols-2 gap-1">
+        <span className="rounded-tl-xl rounded-br-md bg-[#a5b185]" />
+        <span className="rounded-tr-xl rounded-bl-md bg-[#a5b185]" />
+        <span className="rounded-bl-xl rounded-tr-md bg-[#a5b185]" />
+        <span className="rounded-br-xl rounded-tl-md bg-[#a5b185]" />
+      </div>
+
+      <span className="text-[25px] font-semibold leading-none tracking-tight">
+        Gather
+      </span>
+    </Link>
+  );
+}
+
+export default function EventsPage() {
+  const [events, setEvents] = useState<EventItem[]>([]);
+  const [search, setSearch] = useState("");
+  const [city, setCity] = useState("");
+  const [category, setCategory] = useState("");
+  const [page, setPage] = useState(1);
+
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function fetchEvents() {
+      setLoading(true);
+      setError("");
+
+      try {
+        const response = await axios.get<EventsResponse>("/api/events", {
+          params: {
+            page,
+            limit: PAGE_SIZE,
+            ...(search.trim() ? { search: search.trim() } : {}),
+            ...(city.trim() ? { city: city.trim() } : {}),
+            ...(category ? { category } : {}),
+          },
+          signal: controller.signal,
+        });
+
+        const data = response.data;
+
+        setEvents(data.events ?? []);
+        setTotal(data.pagination?.total ?? 0);
+        setTotalPages(data.pagination?.totalPages ?? 0);
+      } catch (err) {
+        if (
+          axios.isCancel(err) ||
+          (axios.isAxiosError(err) && err.code === "ERR_CANCELED")
+        ) {
+          return;
+        }
+
+        setError(
+          axios.isAxiosError(err)
+            ? err.response?.data?.message ??
+                "Unable to load events. Please try again."
+            : "Unable to load events. Please try again."
+        );
+
+        setEvents([]);
+        setTotal(0);
+        setTotalPages(0);
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void fetchEvents();
+
+    return () => controller.abort();
+  }, [page, search, city, category]);
+
+  function updateSearch(value: string) {
+    setPage(1);
+    setSearch(value);
+  }
+
+  function updateCity(value: string) {
+    setPage(1);
+    setCity(value);
+  }
+
+  function updateCategory(value: string) {
+    setPage(1);
+    setCategory(value);
+  }
+
+  function clearFilters() {
+    setSearch("");
+    setCity("");
+    setCategory("");
+    setPage(1);
+  }
+
+  function formatDate(date: string) {
+    return new Intl.DateTimeFormat("en-IN", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(date));
+  }
+
+  function formatPrice(price: number) {
+    if (price === 0) return "Free";
+
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(price);
+  }
+
+  return (
+    <main className="min-h-screen bg-[#0b0f0e] text-[#f1f1eb]">
+      {/* Header and Gather logo */}
+      <header className="border-b border-white/[0.06]">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-5 sm:px-8 lg:px-10">
+          <Logo />
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-7xl px-5 py-12 sm:px-8 sm:py-16 lg:px-10">
+        {/* Page introduction */}
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#a5b185]">
+            Find something to do
+          </p>
+
+          <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-5xl">
+            Explore events.
+          </h1>
+
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-[#a8b0a9] sm:text-base">
+            Discover upcoming experiences in your city. Search by name,
+            choose a category, and find your next experience with Gather.
+          </p>
+        </div>
+
+        {/* Search and filters */}
+        <section
+          aria-label="Filter events"
+          className="mt-8 rounded-2xl border border-[#303831] bg-[#111614] p-4 sm:mt-10 sm:p-5"
+        >
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_auto]">
+            <label className="relative block">
+              <span className="sr-only">Search events</span>
+
+              <Search
+                size={18}
+                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8f9a7c]"
+              />
+
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => updateSearch(e.target.value)}
+                placeholder="Search by event name..."
+                className="h-12 w-full rounded-lg border border-[#303831] bg-[#0b0f0e] pl-10 pr-4 text-sm text-[#f1f1eb] outline-none placeholder:text-[#737d74] focus:border-[#a5b185]/70"
+              />
+            </label>
+
+            <label className="block">
+              <span className="sr-only">Filter by category</span>
+
+              <select
+                value={category}
+                onChange={(e) => updateCategory(e.target.value)}
+                className="h-12 w-full rounded-lg border border-[#303831] bg-[#0b0f0e] px-3.5 text-sm text-[#d5d9d1] outline-none focus:border-[#a5b185]/70"
+              >
+                <option value="">All categories</option>
+                <option value="Music">Music</option>
+                <option value="Workshop">Workshops</option>
+                <option value="Food">Food</option>
+                <option value="Sports">Sports</option>
+                <option value="Kids">Kids</option>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="sr-only">Filter by city</span>
+
+              <input
+                type="text"
+                value={city}
+                onChange={(e) => updateCity(e.target.value)}
+                placeholder="Enter city..."
+                className="h-12 w-full rounded-lg border border-[#303831] bg-[#0b0f0e] px-3.5 text-sm text-[#f1f1eb] outline-none placeholder:text-[#737d74] focus:border-[#a5b185]/70"
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={clearFilters}
+              disabled={!search && !city && !category}
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-[#454d43] px-4 text-sm text-[#d5d9d1] transition hover:border-[#a5b185]/60 hover:bg-white/[0.03] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <X size={16} />
+              Clear
+            </button>
+          </div>
+        </section>
+
+        {/* Results heading */}
+        <div className="mt-8 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-medium sm:text-2xl">
+              Upcoming events
+            </h2>
+
+            {!loading && (
+              <p className="mt-2 text-sm text-[#929a93]">
+                {total} {total === 1 ? "event" : "events"} found
+              </p>
+            )}
+          </div>
+
+          {!loading && totalPages > 0 && (
+            <span className="text-sm text-[#929a93]">
+              Page {page} of {totalPages}
+            </span>
+          )}
+        </div>
+
+        {/* Error state */}
+        {error && (
+          <div
+            role="alert"
+            className="mt-5 rounded-xl border border-red-900/50 bg-[#171311] p-4 text-sm text-red-300"
+          >
+            {error}
+
+            <button
+              type="button"
+              onClick={() => setPage((current) => current)}
+              className="ml-2 underline"
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        {/* Loading state */}
+        {loading ? (
+          <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3, 4, 5, 6].map((item) => (
+              <div
+                key={item}
+                className="h-80 animate-pulse rounded-2xl border border-[#202923] bg-[#111614]"
+              />
+            ))}
+          </div>
+        ) : events.length === 0 ? (
+          /* Empty state */
+          <div className="mt-5 rounded-2xl border border-[#29332d] bg-[#111614] px-6 py-16 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-[#a5b185]/20 bg-[#a5b185]/[0.07]">
+              <Search size={22} className="text-[#a5b185]" />
+            </div>
+
+            <h3 className="mt-5 text-xl font-medium">No events found</h3>
+
+            <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#929a93]">
+              Try another search or change your filters to discover more
+              upcoming events.
+            </p>
+
+            {(search || city || category) && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="mt-6 rounded-lg bg-[#a5b185] px-5 py-3 text-sm font-semibold text-[#11150f] transition hover:bg-[#bac69a]"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        ) : (
+          /* Event cards */
+          <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {events.map((event) => (
+              <Link
+                key={event._id}
+                href={`/events/${event._id}`}
+                className="group overflow-hidden rounded-2xl border border-[#202923] bg-[#111614] transition duration-300 hover:-translate-y-1 hover:border-[#59664d]"
+              >
+                <div className="relative h-48 overflow-hidden bg-[#1a211d]">
+                  <img
+                    src={event.imageUrl}
+                    alt={event.title}
+                    className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                  />
+
+                  <span className="absolute left-4 top-4 rounded-full border border-white/10 bg-black/60 px-3 py-1 text-xs text-[#d8dfc4] backdrop-blur">
+                    {event.category}
+                  </span>
+                </div>
+
+                <div className="p-5">
+                  <h3 className="text-lg font-medium transition group-hover:text-[#c1cca5]">
+                    {event.title}
+                  </h3>
+
+                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#929a93]">
+                    {event.description}
+                  </p>
+
+                  <div className="mt-5 space-y-3 text-sm text-[#b4bcb6]">
+                    <div className="flex items-center gap-2">
+                      <CalendarDays
+                        size={16}
+                        className="shrink-0 text-[#a5b185]"
+                      />
+                      <span>{formatDate(event.date)}</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <MapPin
+                        size={16}
+                        className="shrink-0 text-[#a5b185]"
+                      />
+                      <span>{event.city}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 border-t border-[#29332d] pt-4">
+                    <span className="text-lg font-semibold text-[#c1cca5]">
+                      {formatPrice(event.price)}
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {!loading && !error && totalPages > 1 && (
+          <nav
+            aria-label="Event pagination"
+            className="mt-10 flex flex-wrap items-center justify-center gap-4"
+          >
+            <button
+              type="button"
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              disabled={page <= 1}
+              className="inline-flex items-center gap-2 rounded-xl border border-[#29332d] px-4 py-3 text-sm text-[#d8dfc4] transition hover:bg-[#17201b] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronLeft size={18} />
+              Previous
+            </button>
+
+            <span className="text-sm text-[#929a96]">
+              Page {page} of {totalPages}
+            </span>
+
+            <button
+              type="button"
+              onClick={() =>
+                setPage((current) => Math.min(totalPages, current + 1))
+              }
+              disabled={page >= totalPages}
+              className="inline-flex items-center gap-2 rounded-xl border border-[#29332d] px-4 py-3 text-sm text-[#d8dfc4] transition hover:bg-[#17201b] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Next
+              <ChevronRight size={18} />
+            </button>
+          </nav>
+        )}
+
+        <div className="mt-12 border-t border-white/[0.06] pt-6 text-center">
+          <Link
+            href="/"
+            className="text-sm text-[#a5b185] transition hover:text-[#d8dfc4]"
+          >
+            Back to Gather homepage
+          </Link>
+        </div>
+      </div>
+    </main>
+  );
+}
