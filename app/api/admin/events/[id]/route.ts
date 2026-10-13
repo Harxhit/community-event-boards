@@ -1,3 +1,3 @@
-import { updateEventStatus } from "@/src/backend/controllers/event.controller";
+import { updateEvent } from "@/src/backend/controllers/event.controller";
 
-export const PATCH = updateEventStatus
+export const PATCH = updateEvent
