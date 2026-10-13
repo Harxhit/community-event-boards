@@ -57,7 +57,6 @@ export default function LoginPage() {
       });
 
       const result = await response.json();
-
       if (!response.ok) {
         setError(result.message || "Login failed");
         return;

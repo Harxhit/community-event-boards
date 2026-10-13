@@ -12,6 +12,7 @@ export interface UserDocument extends Document {
   createdAt: Date;
   updatedAt: Date;
   favouriteCategories?:  ('Music' | 'Workshop' | 'Food' | 'Sports' | 'Kids')[];
+  bookMarkedEvents: []
 }
 
 const userSchema = new Schema<UserDocument>(
@@ -54,6 +55,10 @@ const userSchema = new Schema<UserDocument>(
     favouriteCategories: {
       type : [String],
       enum: ['Music', 'Workshop', 'Food', 'Sports', 'Kids'],
+      default: []
+    },
+    bookMarkedEvents: {
+      type: [String],
       default: []
     }
   },
