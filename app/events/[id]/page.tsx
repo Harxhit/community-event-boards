@@ -9,7 +9,13 @@ import {
   CalendarDays,
   MapPin,
   Ticket,
+  Pencil,
+  Bookmark,
+  Save,
+  X,
+  LoaderCircle,
 } from "lucide-react";
+import { useAuth } from "@/src/components/auth/AuthContext";
 
 interface Event {
   _id: string;
@@ -17,18 +23,46 @@ interface Event {
   category: "Music" | "Workshop" | "Food" | "Sports" | "Kids";
   city: string;
   date: string;
+  isActive: boolean; 
   price: number;
   description: string;
   imageUrl: string;
 }
 
+type EventForm = {
+  title: string;
+  category: Event["category"];
+  city: string;
+  date: string;
+  price: string;
+  isActive: boolean; 
+  description: string;
+  imageUrl: string;
+};
+
+const initialForm: EventForm = {
+  title: "",
+  category: "Music",
+  city: "",
+  date: "",
+  price: "0",
+  isActive: true, 
+  description: "",
+  imageUrl: "",
+};
+
 export default function EventPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuth();
 
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [form, setForm] = useState<EventForm>(initialForm);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,6 +98,60 @@ export default function EventPage() {
     };
   }, [id]);
 
+  useEffect(() => {
+    if (!event) return;
+
+    const date = new Date(event.date);
+    const localDate = new Date(
+      date.getTime() - date.getTimezoneOffset() * 60_000,
+    )
+      .toISOString()
+      .slice(0, 16);
+
+    setForm({
+      title: event.title,
+      category: event.category,
+      city: event.city,
+      date: localDate,
+      price: String(event.price),
+      description: event.description,
+      isActive: event.isActive, 
+      imageUrl: event.imageUrl ?? "",
+    });
+  }, [event]);
+
+  function updateForm<K extends keyof EventForm>(
+    field: K,
+    value: EventForm[K],
+  ) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function updateEvent(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSaving(true);
+    setFormError("");
+
+    try {
+      const response = await axios.patch(`/api/admin/events/${id}`, {
+        ...form,
+        price: Number(form.price),
+        date: new Date(form.date).toISOString(),
+      });
+
+      setEvent(response.data.event);
+      setEditing(false);
+    } catch (err) {
+      setFormError(
+        axios.isAxiosError(err)
+          ? err.response?.data?.message ?? "Unable to update event."
+          : "Unable to update event.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const formattedDate = (date: string) =>
     new Intl.DateTimeFormat("en-IN", {
       dateStyle: "full",
@@ -74,7 +162,7 @@ export default function EventPage() {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#0b0f0e] text-[#a5b185]">
         <div className="text-center">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-[#29332d] border-t-[#a5b185]" />
+          <LoaderCircle className="mx-auto animate-spin" size={30} />
           <p className="mt-4 text-sm">Loading event details...</p>
         </div>
       </main>
@@ -103,81 +191,270 @@ export default function EventPage() {
   return (
     <main className="min-h-screen bg-[#0b0f0e] px-5 py-8 text-[#f1f1eb] sm:px-8 lg:px-12">
       <div className="mx-auto max-w-5xl">
-        <Link
-          href="/feed"
-          className="mb-8 inline-flex items-center gap-2 text-sm text-[#a5b185] transition hover:text-[#d0d9b5]"
-        >
-          <ArrowLeft size={17} />
-          Back to your feed
-        </Link>
+        <div className="mb-8 flex items-center justify-between gap-4">
+          <Link
+            href="/feed"
+            className="inline-flex items-center gap-2 text-sm text-[#a5b185] transition hover:text-[#d0d9b5]"
+          >
+            <ArrowLeft size={17} />
+            Back to your feed
+          </Link>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                // Connect this button to your existing bookmark API.
+              }}
+              aria-label="Bookmark event"
+              title="Bookmark event"
+              className="inline-flex items-center gap-2 rounded-xl border border-[#29332d] px-3 py-2.5 text-sm text-[#c1cca5] transition hover:bg-[#151b17]"
+            >
+              <Bookmark size={17} />
+              <span className="hidden sm:inline">Bookmark</span>
+            </button>
+
+            {user?.role === "Admin" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFormError("");
+                  setEditing((current) => !current);
+                }}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#a5b185] px-4 py-2.5 text-sm font-semibold text-[#111614] transition hover:bg-[#bbc59a]"
+              >
+                {editing ? <X size={17} /> : <Pencil size={17} />}
+                {editing ? "Cancel" : "Edit event"}
+              </button>
+            )}
+          </div>
+        </div>
 
         <article className="overflow-hidden rounded-3xl border border-[#29332d] bg-[#111614]">
           <div className="relative h-64 bg-[#1a211d] sm:h-96">
-            <img
-              src={event.imageUrl}
-              alt={event.title}
-              className="h-full w-full object-cover"
-            />
+            {event.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={event.imageUrl}
+                alt={event.title}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center">
+                <CalendarDays size={42} className="text-[#a5b185]" />
+              </div>
+            )}
+
             <div className="absolute inset-0 bg-gradient-to-t from-[#111614] via-transparent to-black/10" />
+
             <span className="absolute left-5 top-5 rounded-full border border-white/10 bg-black/60 px-4 py-2 text-sm text-[#d8dfc4] backdrop-blur">
               {event.category}
             </span>
           </div>
 
           <div className="p-6 sm:p-10">
-            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-              {event.title}
-            </h1>
-
-            <p className="mt-5 whitespace-pre-wrap text-base leading-8 text-[#b0b8b1]">
-              {event.description}
-            </p>
-
-            <div className="mt-8 grid gap-4 sm:grid-cols-2">
-              <div className="flex items-start gap-3 rounded-xl border border-[#29332d] bg-[#151b17] p-4">
-                <CalendarDays
-                  size={21}
-                  className="mt-1 shrink-0 text-[#a5b185]"
-                />
+            {editing && user?.role === "Admin" ? (
+              <form onSubmit={updateEvent} className="space-y-5">
                 <div>
-                  <p className="text-xs text-[#929a96]">Date and time</p>
-                  <p className="mt-2 text-sm leading-6">
-                    {formattedDate(event.date)}
+                  <label className="mb-2 block text-sm text-[#c1c7bc]">
+                    Event title
+                  </label>
+                  <input
+                    required
+                    maxLength={120}
+                    value={form.title}
+                    onChange={(e) => updateForm("title", e.target.value)}
+                    className="w-full rounded-xl border border-[#29332d] bg-[#0b0f0e] p-3 outline-none focus:border-[#a5b185]"
+                  />
+                </div>
+
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm text-[#c1c7bc]">
+                      Category
+                    </label>
+                    <select
+                      value={form.category}
+                      onChange={(e) =>
+                        updateForm(
+                          "category",
+                          e.target.value as Event["category"],
+                        )
+                      }
+                      className="w-full rounded-xl border border-[#29332d] bg-[#0b0f0e] p-3 outline-none focus:border-[#a5b185]"
+                    >
+                      {["Music", "Workshop", "Food", "Sports", "Kids"].map(
+                        (category) => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm text-[#c1c7bc]">
+                      City
+                    </label>
+                    <input
+                      required
+                      value={form.city}
+                      onChange={(e) => updateForm("city", e.target.value)}
+                      className="w-full rounded-xl border border-[#29332d] bg-[#0b0f0e] p-3 outline-none focus:border-[#a5b185]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm text-[#c1c7bc]">
+                      Date and time
+                    </label>
+                    <input
+                      required
+                      type="datetime-local"
+                      value={form.date}
+                      onChange={(e) => updateForm("date", e.target.value)}
+                      className="w-full rounded-xl border border-[#29332d] bg-[#0b0f0e] p-3 outline-none focus:border-[#a5b185]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm text-[#c1c7bc]">
+                      Price (INR)
+                    </label>
+                    <input
+                      required
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={form.price}
+                      onChange={(e) => updateForm("price", e.target.value)}
+                      className="w-full rounded-xl border border-[#29332d] bg-[#0b0f0e] p-3 outline-none focus:border-[#a5b185]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm text-[#c1c7bc]">
+                    Image URL
+                  </label>
+                  <input
+                    type="url"
+                    value={form.imageUrl}
+                    onChange={(e) => updateForm("imageUrl", e.target.value)}
+                    placeholder="https://..."
+                    className="w-full rounded-xl border border-[#29332d] bg-[#0b0f0e] p-3 outline-none focus:border-[#a5b185]"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm text-[#c1c7bc]">
+                    Description
+                  </label>
+                  <textarea
+                    required
+                    rows={5}
+                    maxLength={3000}
+                    value={form.description}
+                    onChange={(e) =>
+                      updateForm("description", e.target.value)
+                    }
+                    className="w-full resize-y rounded-xl border border-[#29332d] bg-[#0b0f0e] p-3 outline-none focus:border-[#a5b185]"
+                  />
+                </div>
+
+                {formError && (
+                  <p role="alert" className="text-sm text-red-300">
+                    {formError}
                   </p>
-                </div>
-              </div>
+                )}
 
-              <div className="flex items-start gap-3 rounded-xl border border-[#29332d] bg-[#151b17] p-4">
-                <MapPin
-                  size={21}
-                  className="mt-1 shrink-0 text-[#a5b185]"
-                />
-                <div>
-                  <p className="text-xs text-[#929a96]">Location</p>
-                  <p className="mt-2 text-sm">{event.city}</p>
-                </div>
-              </div>
-            </div>
+                <div className="flex justify-end gap-3 border-t border-[#29332d] pt-5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormError("");
+                      setEditing(false);
+                    }}
+                    disabled={saving}
+                    className="rounded-xl border border-[#29332d] px-5 py-3 text-sm text-[#c1c7bc] hover:bg-[#151b17] disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
 
-            <div className="mt-8 flex flex-col justify-between gap-5 border-t border-[#29332d] pt-6 sm:flex-row sm:items-center">
-              <div>
-                <p className="text-sm text-[#929a96]">Entry price</p>
-                <p className="mt-1 text-3xl font-semibold text-[#c1cca5]">
-                  {event.price === 0
-                    ? "Free"
-                    : new Intl.NumberFormat("en-IN", {
-                        style: "currency",
-                        currency: "INR",
-                        maximumFractionDigits: 0,
-                      }).format(event.price)}
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#a5b185] px-5 py-3 text-sm font-semibold text-[#111614] hover:bg-[#bbc59a] disabled:opacity-50"
+                  >
+                    {saving ? (
+                      <LoaderCircle size={16} className="animate-spin" />
+                    ) : (
+                      <Save size={16} />
+                    )}
+                    {saving ? "Saving..." : "Save changes"}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <Link
+                  href={`/events/${event._id}`}
+                  className="truncate font-medium transition hover:text-[#a5b185]"
+                >
+                  {event.title}
+                </Link>
+                <p className="mt-5 whitespace-pre-wrap text-base leading-8 text-[#b0b8b1]">
+                  {event.description}
                 </p>
-              </div>
 
-              <div className="flex items-center gap-2 text-sm text-[#929a96]">
-                <Ticket size={19} className="text-[#a5b185]" />
-                Community event
-              </div>
-            </div>
+                <div className="mt-8 grid gap-4 sm:grid-cols-2">
+                  <div className="flex items-start gap-3 rounded-xl border border-[#29332d] bg-[#151b17] p-4">
+                    <CalendarDays
+                      size={21}
+                      className="mt-1 shrink-0 text-[#a5b185]"
+                    />
+                    <div>
+                      <p className="text-xs text-[#929a96]">Date and time</p>
+                      <p className="mt-2 text-sm leading-6">
+                        {formattedDate(event.date)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 rounded-xl border border-[#29332d] bg-[#151b17] p-4">
+                    <MapPin
+                      size={21}
+                      className="mt-1 shrink-0 text-[#a5b185]"
+                    />
+                    <div>
+                      <p className="text-xs text-[#929a96]">Location</p>
+                      <p className="mt-2 text-sm">{event.city}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-8 flex flex-col justify-between gap-5 border-t border-[#29332d] pt-6 sm:flex-row sm:items-center">
+                  <div>
+                    <p className="text-sm text-[#929a96]">Entry price</p>
+                    <p className="mt-1 text-3xl font-semibold text-[#c1cca5]">
+                      {event.price === 0
+                        ? "Free"
+                        : new Intl.NumberFormat("en-IN", {
+                            style: "currency",
+                            currency: "INR",
+                            maximumFractionDigits: 0,
+                          }).format(event.price)}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-sm text-[#929a96]">
+                    <Ticket size={19} className="text-[#a5b185]" />
+                    Community event
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </article>
       </div>

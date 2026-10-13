@@ -61,7 +61,6 @@ export default function LoginPage() {
         setError(result.message || "Login failed");
         return;
       }
-
       window.location.href = result.data.role === "Admin" ? "/admin" : "/preferences";
     } catch {
       setError("Unable to connect. Please try again.");

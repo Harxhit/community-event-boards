@@ -75,7 +75,7 @@ export default function SignupPage() {
         return;
       }
 
-      window.location.href = "/";
+      window.location.href = result.data.role === "Admin" ? "/admin" : "/preferences";
     } catch {
       setError("Unable to connect. Please try again.");
     } finally {
