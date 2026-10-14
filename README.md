@@ -138,6 +138,6 @@ npm run dev
 
 Before submitting, verify the API responses, authentication and authorization, event filtering and pagination, bookmarks, personalized feed, and saved card designs. Add any additional development commands that exist in `package.json`.
 
-## AI assistance
+### AI Assistance
 
-AI tools were used to assist with development and documentation. Review the final implementation and update this note to accurately describe the assistance used.
+I designed the UI and implemented the whole backend logic. ChatGPT was used extensively to generate and refine UI based on my design direction, as well as to assist with debugging and documentation. I reviewed, integrated, and tested the generated code as part of the application.
