@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -95,6 +94,50 @@ export default function EventPage() {
     useState<CardDesign>(defaultCardDesign);
   const [hasCardDesign, setHasCardDesign] = useState(false);
 
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [bookmarkLoading, setBookmarkLoading] = useState(false);
+  const [bookmarkError, setBookmarkError] = useState("");
+
+  // Initialize bookmark status from the authenticated user's saved events.
+  useEffect(() => {
+    const bookmarkedEvents = user?.bookMarkedEvents ?? [];
+    setIsBookmarked(bookmarkedEvents.map(String).includes(id));
+  }, [user, id]);
+
+  async function toggleBookmark() {
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+
+    // The provided API only adds bookmarks; it does not remove them.
+    if (isBookmarked || bookmarkLoading) return;
+
+    setBookmarkLoading(true);
+    setBookmarkError("");
+
+    try {
+      const response = await axios.post(`/api/events/${id}/bookmark`);
+
+      if (response.data.success) {
+        setIsBookmarked(true);
+      } else {
+        setBookmarkError(
+          response.data.message ?? "Unable to bookmark this event.",
+        );
+      }
+    } catch (err) {
+      setBookmarkError(
+        axios.isAxiosError(err)
+          ? err.response?.data?.message ??
+              "Unable to bookmark this event."
+          : "Unable to bookmark this event.",
+      );
+    } finally {
+      setBookmarkLoading(false);
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
 
@@ -137,9 +180,7 @@ export default function EventPage() {
       setHasCardDesign(false);
 
       try {
-        const response = await axios.get(
-          `/api/events/${id}/card-design`,
-        );
+        const response = await axios.get(`/api/events/${id}/card-design`);
 
         if (cancelled) return;
 
@@ -283,15 +324,32 @@ export default function EventPage() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => {
-                // Connect this button to your existing bookmark API.
-              }}
-              aria-label="Bookmark event"
-              title="Bookmark event"
-              className="inline-flex items-center gap-2 rounded-xl border border-[#29332d] px-3 py-2.5 text-sm text-[#c1cca5] transition hover:bg-[#151b17]"
+              onClick={toggleBookmark}
+              disabled={bookmarkLoading || isBookmarked}
+              aria-label={isBookmarked ? "Event bookmarked" : "Bookmark event"}
+              aria-pressed={isBookmarked}
+              title={isBookmarked ? "Bookmarked" : "Bookmark event"}
+              className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm transition disabled:cursor-default ${
+                isBookmarked
+                  ? "border-[#a5b185] bg-[#a5b185]/10 text-[#c1cca5]"
+                  : "border-[#29332d] text-[#c1cca5] hover:bg-[#151b17]"
+              }`}
             >
-              <Bookmark size={17} />
-              <span className="hidden sm:inline">Bookmark</span>
+              {bookmarkLoading ? (
+                <LoaderCircle size={17} className="animate-spin" />
+              ) : (
+                <Bookmark
+                  size={17}
+                  fill={isBookmarked ? "currentColor" : "none"}
+                />
+              )}
+              <span className="hidden sm:inline">
+                {bookmarkLoading
+                  ? "Saving..."
+                  : isBookmarked
+                    ? "Bookmarked"
+                    : "Bookmark"}
+              </span>
             </button>
 
             <Link
@@ -317,6 +375,15 @@ export default function EventPage() {
             )}
           </div>
         </div>
+
+        {bookmarkError && (
+          <p
+            role="alert"
+            className="mb-4 rounded-xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-300"
+          >
+            {bookmarkError}
+          </p>
+        )}
 
         <article className={`overflow-hidden rounded-3xl border ${cardThemeClass}`}>
           <div className="relative h-64 bg-[#1a211d] sm:h-96">
@@ -515,7 +582,10 @@ export default function EventPage() {
 
                 <div className="mt-8 grid gap-4 sm:grid-cols-2">
                   <div className="flex items-start gap-3 rounded-xl border border-current/15 bg-black/[0.04] p-4">
-                    <CalendarDays size={21} className="mt-1 shrink-0 text-[#a5b185]" />
+                    <CalendarDays
+                      size={21}
+                      className="mt-1 shrink-0 text-[#a5b185]"
+                    />
                     <div>
                       <p className="text-xs opacity-60">Date and time</p>
                       <p className="mt-2 text-sm leading-6">
@@ -525,7 +595,10 @@ export default function EventPage() {
                   </div>
 
                   <div className="flex items-start gap-3 rounded-xl border border-current/15 bg-black/[0.04] p-4">
-                    <MapPin size={21} className="mt-1 shrink-0 text-[#a5b185]" />
+                    <MapPin
+                      size={21}
+                      className="mt-1 shrink-0 text-[#a5b185]"
+                    />
                     <div>
                       <p className="text-xs opacity-60">Location</p>
                       <p className="mt-2 text-sm">{event.city}</p>

@@ -15,6 +15,7 @@ interface User {
     email: string;
     username: string;
     role: "User" | "Admin";
+    bookMarkedEvents: string[]
 }
 
 interface AuthContextType {

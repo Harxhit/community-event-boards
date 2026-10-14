@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@/src/components/auth/AuthContext";
 import axios from "axios";
 import Link from "next/link";
 import {
@@ -38,7 +39,13 @@ interface FeedResponse {
 }
 
 type CardTheme = "theme-1" | "theme-2" | "theme-3";
-type CardSticker = "music" | "confetti" | "star" | "heart" | "sparkles";
+
+type CardSticker =
+  | "music"
+  | "confetti"
+  | "star"
+  | "heart"
+  | "sparkles";
 
 interface CardDesign {
   theme: CardTheme;
@@ -94,6 +101,8 @@ function getThemeClass(theme: CardTheme) {
 }
 
 export default function FeedPage() {
+  const { user, loading: authLoading } = useAuth();
+
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -112,11 +121,22 @@ export default function FeedPage() {
 
   const [bookmarking, setBookmarking] = useState<Set<string>>(new Set());
 
+  // Restore bookmark state when authentication has finished loading.
+  // This does not control whether the public feed can load.
+  useEffect(() => {
+    if (authLoading) return;
+
+    setBookmarkedEvents(
+      new Set((user?.bookMarkedEvents ?? []).map(String))
+    );
+  }, [user, authLoading]);
+
   async function fetchFeed(page: number = currentPage) {
     setLoading(true);
     setError("");
 
     try {
+      // Public feed: this request does not require a logged-in user.
       const response = await axios.get<FeedResponse>("/api/feed", {
         params: {
           page,
@@ -133,7 +153,7 @@ export default function FeedPage() {
       setTotalPages(data.totalPages ?? 0);
       setTotalEvents(data.totalEvents ?? 0);
 
-      // Fetch all card designs for the current page in one request.
+      // Load card designs for the current page in one request.
       if (fetchedEvents.length === 0) {
         setCardDesigns({});
       } else {
@@ -161,11 +181,12 @@ export default function FeedPage() {
 
           setCardDesigns(designsByEventId);
         } catch (designError) {
-          // Keep the feed functional if card designs cannot be loaded.
+          // Card design failures should not prevent browsing events.
           console.error(
             "Unable to load feed card designs:",
             designError
           );
+
           setCardDesigns({});
         }
       }
@@ -180,11 +201,17 @@ export default function FeedPage() {
     }
   }
 
+  // Fetch public events independently of authentication.
   useEffect(() => {
     void fetchFeed(1);
   }, []);
 
   async function handleBookmark(eventId: string) {
+    if (!user) {
+      setError("Log in to save events to your reminders.");
+      return;
+    }
+
     if (
       bookmarking.has(eventId) ||
       bookmarkedEvents.has(eventId)

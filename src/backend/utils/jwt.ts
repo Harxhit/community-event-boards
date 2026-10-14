@@ -11,6 +11,7 @@ export interface Session {
     email: string
     username: string
     role: "User" | "Admin"
+    bookMarkedEvents: string[]
 }
 
 export const getSession = async():Promise<Session | null> => {
@@ -32,7 +33,7 @@ export const getSession = async():Promise<Session | null> => {
             return null;
         }
 
-        const user = await User.findById(userId).select("name email username role")
+        const user = await User.findById(userId).select("name email username role bookMarkedEvents")
 
         if(!user) return null
 
@@ -42,6 +43,7 @@ export const getSession = async():Promise<Session | null> => {
             email: user.email,
             username: user.username,
             role: user.role,
+            bookMarkedEvents: user.bookMarkedEvents
         }
     } catch{
         return null

@@ -1,11 +1,12 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@/src/components/auth/AuthContext";
 import axios from "axios";
 import Link from "next/link";
 import {
   ArrowLeft,
+  Bookmark,
   CalendarDays,
   MapPin,
   Search,
@@ -79,7 +80,6 @@ function Logo() {
         <span className="rounded-bl-xl rounded-tr-md bg-[#a5b185]" />
         <span className="rounded-br-xl rounded-tl-md bg-[#a5b185]" />
       </div>
-
       <span className="text-[25px] font-semibold leading-none tracking-tight">
         Gather
       </span>
@@ -88,12 +88,18 @@ function Logo() {
 }
 
 export default function EventsPage() {
+  const { user, loading: authLoading } = useAuth();
+
   const [events, setEvents] = useState<EventItem[]>([]);
+  const [bookmarkedEvents, setBookmarkedEvents] = useState<Set<string>>(
+    new Set()
+  );
+  const [bookmarking, setBookmarking] = useState<Set<string>>(new Set());
+
   const [search, setSearch] = useState("");
   const [city, setCity] = useState("");
   const [category, setCategory] = useState("");
   const [page, setPage] = useState(1);
-
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -104,64 +110,119 @@ export default function EventsPage() {
   >({});
   const [designsLoading, setDesignsLoading] = useState(false);
 
+  // Restore bookmarks when authentication finishes loading.
+  // This does not control whether public events are fetched.
   useEffect(() => {
-    const controller = new AbortController();
+    if (authLoading) return;
 
-  async function fetchEvents() {
-    setLoading(true);
-    setDesignsLoading(true);
+    setBookmarkedEvents(
+      new Set((user?.bookMarkedEvents ?? []).map(String))
+    );
+  }, [user, authLoading]);
+
+  async function handleBookmark(eventId: string) {
+    if (!user) {
+      setError("Log in to save events to your reminders.");
+      return;
+    }
+
+    if (bookmarking.has(eventId) || bookmarkedEvents.has(eventId)) {
+      return;
+    }
+
+    setBookmarking((current) => new Set(current).add(eventId));
     setError("");
 
     try {
-      const response = await axios.get<EventsResponse>("/api/events", {
-        params: {
-          page,
-          limit: PAGE_SIZE,
-          ...(search.trim() ? { search: search.trim() } : {}),
-          ...(city.trim() ? { city: city.trim() } : {}),
-          ...(category ? { category } : {}),
-        },
-        signal: controller.signal,
+      await axios.post(`/api/events/${eventId}/bookmark`);
+
+      setBookmarkedEvents((current) => new Set(current).add(eventId));
+    } catch (err) {
+      setError(
+        axios.isAxiosError(err)
+          ? err.response?.data?.message ?? "Unable to bookmark event."
+          : "Unable to bookmark event."
+      );
+    } finally {
+      setBookmarking((current) => {
+        const next = new Set(current);
+        next.delete(eventId);
+        return next;
       });
+    }
+  }
 
-      const data = response.data;
-      const fetchedEvents = data.events ?? [];
+  useEffect(() => {
+    const controller = new AbortController();
 
-      setEvents(fetchedEvents);
-      setTotal(data.pagination?.total ?? 0);
-      setTotalPages(data.pagination?.totalPages ?? 0);
-
-      if (fetchedEvents.length === 0) {
-        setCardDesigns({});
-        return;
-      }
+    async function fetchEvents() {
+      setLoading(true);
+      setDesignsLoading(true);
+      setError("");
 
       try {
-        const designResponse = await axios.get<{
-          success: boolean;
-          designs: {
-            eventId: string;
-            theme: CardTheme;
-            stickers: CardSticker[];
-          }[];
-        }>("/api/events/card-designs", {
+        // Public endpoint: no authentication is required to browse events.
+        const response = await axios.get<EventsResponse>("/api/events", {
           params: {
-            eventIds: fetchedEvents.map((event) => event._id).join(","),
+            page,
+            limit: PAGE_SIZE,
+            ...(search.trim() ? { search: search.trim() } : {}),
+            ...(city.trim() ? { city: city.trim() } : {}),
+            ...(category ? { category } : {}),
           },
           signal: controller.signal,
         });
 
-        const designs: Record<string, CardDesign> = {};
+        const data = response.data;
+        const fetchedEvents = data.events ?? [];
 
-        for (const design of designResponse.data.designs) {
-          designs[design.eventId] = {
-            theme: design.theme ?? "theme-1",
-            stickers: design.stickers ?? [],
-          };
+        setEvents(fetchedEvents);
+        setTotal(data.pagination?.total ?? 0);
+        setTotalPages(data.pagination?.totalPages ?? 0);
+
+        if (fetchedEvents.length === 0) {
+          setCardDesigns({});
+          return;
         }
 
-        if (!controller.signal.aborted) {
-          setCardDesigns(designs);
+        try {
+          const designResponse = await axios.get<{
+            success: boolean;
+            designs: {
+              eventId: string;
+              theme: CardTheme;
+              stickers: CardSticker[];
+            }[];
+          }>("/api/events/card-designs", {
+            params: {
+              eventIds: fetchedEvents.map((event) => event._id).join(","),
+            },
+            signal: controller.signal,
+          });
+
+          const designs: Record<string, CardDesign> = {};
+
+          for (const design of designResponse.data.designs ?? []) {
+            designs[design.eventId] = {
+              theme: design.theme ?? "theme-1",
+              stickers: design.stickers ?? [],
+            };
+          }
+
+          if (!controller.signal.aborted) {
+            setCardDesigns(designs);
+          }
+        } catch (err) {
+          if (
+            axios.isCancel(err) ||
+            (axios.isAxiosError(err) && err.code === "ERR_CANCELED")
+          ) {
+            return;
+          }
+
+          if (!controller.signal.aborted) {
+            setCardDesigns({});
+          }
         }
       } catch (err) {
         if (
@@ -171,36 +232,24 @@ export default function EventsPage() {
           return;
         }
 
+        setError(
+          axios.isAxiosError(err)
+            ? err.response?.data?.message ??
+                "Unable to load events. Please try again."
+            : "Unable to load events. Please try again."
+        );
+
+        setEvents([]);
+        setCardDesigns({});
+        setTotal(0);
+        setTotalPages(0);
+      } finally {
         if (!controller.signal.aborted) {
-          setCardDesigns({});
+          setLoading(false);
+          setDesignsLoading(false);
         }
       }
-    } catch (err) {
-      if (
-        axios.isCancel(err) ||
-        (axios.isAxiosError(err) && err.code === "ERR_CANCELED")
-      ) {
-        return;
-      }
-
-      setError(
-        axios.isAxiosError(err)
-          ? err.response?.data?.message ??
-              "Unable to load events. Please try again."
-          : "Unable to load events. Please try again.",
-      );
-
-      setEvents([]);
-      setCardDesigns({});
-      setTotal(0);
-      setTotalPages(0);
-    } finally {
-      if (!controller.signal.aborted) {
-        setLoading(false);
-        setDesignsLoading(false);
-      }
     }
-  }
 
     void fetchEvents();
 
@@ -431,16 +480,41 @@ export default function EventsPage() {
             {events.map((event) => {
               const design = cardDesigns[event._id] ?? defaultCardDesign;
               const theme = getThemeClass(design.theme);
+              const isBookmarked = bookmarkedEvents.has(event._id);
+              const isBookmarking = bookmarking.has(event._id);
 
               return (
                 <article
                   key={event._id}
-                  className={`group overflow-hidden rounded-2xl border transition duration-300 hover:-translate-y-1 ${theme.card}`}
+                  className={`group relative overflow-hidden rounded-2xl border transition duration-300 hover:-translate-y-1 ${theme.card}`}
                 >
-                  <Link
-                    href={`/events/${event._id}`}
-                    className="block"
+                  <button
+                    type="button"
+                    onClick={() => void handleBookmark(event._id)}
+                    disabled={isBookmarked || isBookmarking}
+                    aria-label={
+                      isBookmarked ? "Event bookmarked" : "Bookmark event"
+                    }
+                    aria-pressed={isBookmarked}
+                    title={
+                      isBookmarked
+                        ? "Bookmarked"
+                        : isBookmarking
+                          ? "Saving bookmark"
+                          : "Bookmark event"
+                    }
+                    className="absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-black/70 text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-black disabled:cursor-default disabled:opacity-90"
                   >
+                    <Bookmark
+                      size={18}
+                      fill={isBookmarked ? "currentColor" : "none"}
+                      className={
+                        isBookmarked ? "text-[#c1cca5]" : "text-white"
+                      }
+                    />
+                  </button>
+
+                  <Link href={`/events/${event._id}`} className="block">
                     <div className="relative h-48 overflow-hidden bg-[#1a211d]">
                       {event.imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -451,7 +525,10 @@ export default function EventsPage() {
                         />
                       ) : (
                         <div className="flex h-full items-center justify-center">
-                          <CalendarDays size={36} className="text-[#a5b185]" />
+                          <CalendarDays
+                            size={36}
+                            className="text-[#a5b185]"
+                          />
                         </div>
                       )}
 
@@ -484,7 +561,9 @@ export default function EventsPage() {
                         {event.title}
                       </h3>
 
-                      <p className={`mt-2 line-clamp-2 text-sm leading-6 ${theme.description}`}>
+                      <p
+                        className={`mt-2 line-clamp-2 text-sm leading-6 ${theme.description}`}
+                      >
                         {event.description}
                       </p>
                     </div>
@@ -509,7 +588,9 @@ export default function EventsPage() {
                       </div>
                     </div>
 
-                    <div className={`mt-5 flex items-center justify-between gap-3 border-t pt-4 ${theme.details}`}>
+                    <div
+                      className={`mt-5 flex items-center justify-between gap-3 border-t pt-4 ${theme.details}`}
+                    >
                       <span className={`text-lg font-semibold ${theme.price}`}>
                         {formatPrice(event.price)}
                       </span>
