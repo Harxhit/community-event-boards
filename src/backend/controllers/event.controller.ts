@@ -266,7 +266,6 @@ const feed = async({ params }: { params: Promise<{ page: string; limit: string }
 
         const user = await User.findById(session.userId)
         const favCategories = user?.favouriteCategories
-        console.log("Fav cat", favCategories)
 
         if (!user || !favCategories?.length) {
             return Response.json({

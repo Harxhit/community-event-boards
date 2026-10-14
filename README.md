@@ -141,3 +141,22 @@ Before submitting, verify the API responses, authentication and authorization, e
 ### AI Assistance
 
 I designed the UI and implemented the whole backend logic. ChatGPT was used extensively to generate and refine UI based on my design direction, as well as to assist with debugging and documentation. I reviewed, integrated, and tested the generated code as part of the application.
+AI tools were used to assist with development and documentation. Review the final implementation and update this note to accurately describe the assistance used.
+
+
+## Assignment Questions
+
+### 1. Database Structure and Design
+
+We use three main schemas: **Event, User, and CardDesign**. Bookmarked event IDs are stored directly in the User schema instead of creating a separate Reminder schema, keeping the data model simpler. The CardDesign schema connects users with events and stores their selected themes and stickers, while the User schema stores account details and preferences. We chose MongoDB for its flexible document-based structure, which suits the different data and relationships in our application.
+
+### 2. Filter Query and Indexing
+
+Our event queries combine city, category, text search, and pagination so users can narrow down results efficiently. Search input is escaped to prevent special characters from being interpreted as regular expressions, and the API returns pagination metadata such as the current page, total pages, and total events. We use indexes on event status, date, and category, unique indexes on usernames and emails, and a compound unique index on `eventId` and `userId` in CardDesign. These indexes support our query patterns and prevent duplicate accounts and card designs.
+
+
+### 3. Password Storage and Admin Protection
+
+We use bcrypt with `eight salt rounds` to hash passwords instead of storing them in plain text. After successful login, the server issues a JWT access token and role, we store jwt acessToken  in cookies. Our `getSession` function reads the cookies to authenticate users, and `/api/me` uses this mechanism to return the authenticated user's information.
+
+We protect admin pages and APIs through server-side authentication and role-based authorization, ensuring that only authorized admins can perform administrative operations. We also validate request bodies and URL parameters before processing them.
