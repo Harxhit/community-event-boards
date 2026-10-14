@@ -221,7 +221,6 @@ const updateEvent = async(request:Request, { params }: { params: Promise<{ id: s
 const getEventById = async({params}: {params: Promise<{ id: string }>}): Promise<Response> => {
     try {
         const {id} = await params
-        console.log(id)
         if (!mongoose.isValidObjectId(id)) {
             return Response.json(
                 { success: false, message: "Invalid event ID" },

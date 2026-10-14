@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -11,6 +12,12 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  Pencil,
+  Music,
+  PartyPopper,
+  Star,
+  Heart,
+  Sparkles,
 } from "lucide-react";
 
 interface EventItem {
@@ -35,6 +42,27 @@ interface EventsResponse {
     totalPages: number;
   };
 }
+
+type CardTheme = "theme-1" | "theme-2" | "theme-3";
+type CardSticker = "music" | "confetti" | "star" | "heart" | "sparkles";
+
+interface CardDesign {
+  theme: CardTheme;
+  stickers: CardSticker[];
+}
+
+const defaultCardDesign: CardDesign = {
+  theme: "theme-1",
+  stickers: [],
+};
+
+const stickerIcons = {
+  music: Music,
+  confetti: PartyPopper,
+  star: Star,
+  heart: Heart,
+  sparkles: Sparkles,
+};
 
 const PAGE_SIZE = 10;
 
@@ -71,30 +99,70 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const [cardDesigns, setCardDesigns] = useState<
+    Record<string, CardDesign>
+  >({});
+  const [designsLoading, setDesignsLoading] = useState(false);
+
   useEffect(() => {
     const controller = new AbortController();
 
-    async function fetchEvents() {
-      setLoading(true);
-      setError("");
+  async function fetchEvents() {
+    setLoading(true);
+    setDesignsLoading(true);
+    setError("");
+
+    try {
+      const response = await axios.get<EventsResponse>("/api/events", {
+        params: {
+          page,
+          limit: PAGE_SIZE,
+          ...(search.trim() ? { search: search.trim() } : {}),
+          ...(city.trim() ? { city: city.trim() } : {}),
+          ...(category ? { category } : {}),
+        },
+        signal: controller.signal,
+      });
+
+      const data = response.data;
+      const fetchedEvents = data.events ?? [];
+
+      setEvents(fetchedEvents);
+      setTotal(data.pagination?.total ?? 0);
+      setTotalPages(data.pagination?.totalPages ?? 0);
+
+      if (fetchedEvents.length === 0) {
+        setCardDesigns({});
+        return;
+      }
 
       try {
-        const response = await axios.get<EventsResponse>("/api/events", {
+        const designResponse = await axios.get<{
+          success: boolean;
+          designs: {
+            eventId: string;
+            theme: CardTheme;
+            stickers: CardSticker[];
+          }[];
+        }>("/api/events/card-designs", {
           params: {
-            page,
-            limit: PAGE_SIZE,
-            ...(search.trim() ? { search: search.trim() } : {}),
-            ...(city.trim() ? { city: city.trim() } : {}),
-            ...(category ? { category } : {}),
+            eventIds: fetchedEvents.map((event) => event._id).join(","),
           },
           signal: controller.signal,
         });
 
-        const data = response.data;
+        const designs: Record<string, CardDesign> = {};
 
-        setEvents(data.events ?? []);
-        setTotal(data.pagination?.total ?? 0);
-        setTotalPages(data.pagination?.totalPages ?? 0);
+        for (const design of designResponse.data.designs) {
+          designs[design.eventId] = {
+            theme: design.theme ?? "theme-1",
+            stickers: design.stickers ?? [],
+          };
+        }
+
+        if (!controller.signal.aborted) {
+          setCardDesigns(designs);
+        }
       } catch (err) {
         if (
           axios.isCancel(err) ||
@@ -103,22 +171,36 @@ export default function EventsPage() {
           return;
         }
 
-        setError(
-          axios.isAxiosError(err)
-            ? err.response?.data?.message ??
-                "Unable to load events. Please try again."
-            : "Unable to load events. Please try again."
-        );
-
-        setEvents([]);
-        setTotal(0);
-        setTotalPages(0);
-      } finally {
         if (!controller.signal.aborted) {
-          setLoading(false);
+          setCardDesigns({});
         }
       }
+    } catch (err) {
+      if (
+        axios.isCancel(err) ||
+        (axios.isAxiosError(err) && err.code === "ERR_CANCELED")
+      ) {
+        return;
+      }
+
+      setError(
+        axios.isAxiosError(err)
+          ? err.response?.data?.message ??
+              "Unable to load events. Please try again."
+          : "Unable to load events. Please try again.",
+      );
+
+      setEvents([]);
+      setCardDesigns({});
+      setTotal(0);
+      setTotalPages(0);
+    } finally {
+      if (!controller.signal.aborted) {
+        setLoading(false);
+        setDesignsLoading(false);
+      }
     }
+  }
 
     void fetchEvents();
 
@@ -164,9 +246,36 @@ export default function EventsPage() {
     }).format(price);
   }
 
+  function getThemeClass(theme: CardTheme) {
+    switch (theme) {
+      case "theme-2":
+        return {
+          card: "border-[#a5b185] bg-[#e9eadb] text-[#303d30]",
+          description: "text-[#56634e]",
+          details: "border-[#cbd0b9]",
+          price: "text-[#536443]",
+        };
+
+      case "theme-3":
+        return {
+          card: "border-[#a879b5] bg-[#241b2c] text-[#f1f1eb]",
+          description: "text-[#c4b8cb]",
+          details: "border-[#49384f]",
+          price: "text-[#d8b8e6]",
+        };
+
+      default:
+        return {
+          card: "border-[#29332d] bg-[#111614] text-[#f1f1eb]",
+          description: "text-[#929a93]",
+          details: "border-[#29332d]",
+          price: "text-[#c1cca5]",
+        };
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#0b0f0e] text-[#f1f1eb]">
-      {/* Header and Gather logo */}
       <header className="border-b border-white/[0.06]">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-5 sm:px-8 lg:px-10">
           <Logo />
@@ -174,7 +283,6 @@ export default function EventsPage() {
       </header>
 
       <div className="mx-auto max-w-7xl px-5 py-12 sm:px-8 sm:py-16 lg:px-10">
-        {/* Page introduction */}
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#a5b185]">
             Find something to do
@@ -190,7 +298,6 @@ export default function EventsPage() {
           </p>
         </div>
 
-        {/* Search and filters */}
         <section
           aria-label="Filter events"
           className="mt-8 rounded-2xl border border-[#303831] bg-[#111614] p-4 sm:mt-10 sm:p-5"
@@ -198,12 +305,10 @@ export default function EventsPage() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_auto]">
             <label className="relative block">
               <span className="sr-only">Search events</span>
-
               <Search
                 size={18}
                 className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8f9a7c]"
               />
-
               <input
                 type="search"
                 value={search}
@@ -215,7 +320,6 @@ export default function EventsPage() {
 
             <label className="block">
               <span className="sr-only">Filter by category</span>
-
               <select
                 value={category}
                 onChange={(e) => updateCategory(e.target.value)}
@@ -232,7 +336,6 @@ export default function EventsPage() {
 
             <label className="block">
               <span className="sr-only">Filter by city</span>
-
               <input
                 type="text"
                 value={city}
@@ -254,7 +357,6 @@ export default function EventsPage() {
           </div>
         </section>
 
-        {/* Results heading */}
         <div className="mt-8 flex items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-medium sm:text-2xl">
@@ -264,6 +366,7 @@ export default function EventsPage() {
             {!loading && (
               <p className="mt-2 text-sm text-[#929a93]">
                 {total} {total === 1 ? "event" : "events"} found
+                {designsLoading ? " · Loading card designs..." : ""}
               </p>
             )}
           </div>
@@ -275,17 +378,15 @@ export default function EventsPage() {
           )}
         </div>
 
-        {/* Error state */}
         {error && (
           <div
             role="alert"
             className="mt-5 rounded-xl border border-red-900/50 bg-[#171311] p-4 text-sm text-red-300"
           >
             {error}
-
             <button
               type="button"
-              onClick={() => setPage((current) => current)}
+              onClick={() => setPage((current) => current + 1)}
               className="ml-2 underline"
             >
               Try again
@@ -293,7 +394,6 @@ export default function EventsPage() {
           </div>
         )}
 
-        {/* Loading state */}
         {loading ? (
           <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3, 4, 5, 6].map((item) => (
@@ -304,7 +404,6 @@ export default function EventsPage() {
             ))}
           </div>
         ) : events.length === 0 ? (
-          /* Empty state */
           <div className="mt-5 rounded-2xl border border-[#29332d] bg-[#111614] px-6 py-16 text-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-[#a5b185]/20 bg-[#a5b185]/[0.07]">
               <Search size={22} className="text-[#a5b185]" />
@@ -328,65 +427,114 @@ export default function EventsPage() {
             )}
           </div>
         ) : (
-          /* Event cards */
           <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {events.map((event) => (
-              <Link
-                key={event._id}
-                href={`/events/${event._id}`}
-                className="group overflow-hidden rounded-2xl border border-[#202923] bg-[#111614] transition duration-300 hover:-translate-y-1 hover:border-[#59664d]"
-              >
-                <div className="relative h-48 overflow-hidden bg-[#1a211d]">
-                  <img
-                    src={event.imageUrl}
-                    alt={event.title}
-                    className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                  />
+            {events.map((event) => {
+              const design = cardDesigns[event._id] ?? defaultCardDesign;
+              const theme = getThemeClass(design.theme);
 
-                  <span className="absolute left-4 top-4 rounded-full border border-white/10 bg-black/60 px-3 py-1 text-xs text-[#d8dfc4] backdrop-blur">
-                    {event.category}
-                  </span>
-                </div>
+              return (
+                <article
+                  key={event._id}
+                  className={`group overflow-hidden rounded-2xl border transition duration-300 hover:-translate-y-1 ${theme.card}`}
+                >
+                  <Link
+                    href={`/events/${event._id}`}
+                    className="block"
+                  >
+                    <div className="relative h-48 overflow-hidden bg-[#1a211d]">
+                      {event.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={event.imageUrl}
+                          alt={event.title}
+                          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center">
+                          <CalendarDays size={36} className="text-[#a5b185]" />
+                        </div>
+                      )}
 
-                <div className="p-5">
-                  <h3 className="text-lg font-medium transition group-hover:text-[#c1cca5]">
-                    {event.title}
-                  </h3>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/55 to-transparent" />
 
-                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#929a93]">
-                    {event.description}
-                  </p>
+                      <span className="absolute left-4 top-4 rounded-full border border-white/10 bg-black/60 px-3 py-1 text-xs text-[#d8dfc4] backdrop-blur">
+                        {event.category}
+                      </span>
 
-                  <div className="mt-5 space-y-3 text-sm text-[#b4bcb6]">
-                    <div className="flex items-center gap-2">
-                      <CalendarDays
-                        size={16}
-                        className="shrink-0 text-[#a5b185]"
-                      />
-                      <span>{formatDate(event.date)}</span>
+                      {design.stickers.length > 0 && (
+                        <div className="absolute right-3 top-3 flex gap-1.5">
+                          {design.stickers.map((sticker) => {
+                            const Icon = stickerIcons[sticker];
+
+                            return (
+                              <span
+                                key={sticker}
+                                className="rounded-full border border-white/15 bg-black/55 p-2 text-white backdrop-blur"
+                              >
+                                <Icon size={15} />
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <MapPin
-                        size={16}
-                        className="shrink-0 text-[#a5b185]"
-                      />
-                      <span>{event.city}</span>
+                    <div className="p-5 pb-0">
+                      <h3 className="text-lg font-medium transition group-hover:opacity-80">
+                        {event.title}
+                      </h3>
+
+                      <p className={`mt-2 line-clamp-2 text-sm leading-6 ${theme.description}`}>
+                        {event.description}
+                      </p>
+                    </div>
+                  </Link>
+
+                  <div className="px-5 pb-5">
+                    <div className="mt-5 space-y-3 text-sm opacity-80">
+                      <div className="flex items-center gap-2">
+                        <CalendarDays
+                          size={16}
+                          className="shrink-0 text-[#a5b185]"
+                        />
+                        <span>{formatDate(event.date)}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <MapPin
+                          size={16}
+                          className="shrink-0 text-[#a5b185]"
+                        />
+                        <span>{event.city}</span>
+                      </div>
+                    </div>
+
+                    <div className={`mt-5 flex items-center justify-between gap-3 border-t pt-4 ${theme.details}`}>
+                      <span className={`text-lg font-semibold ${theme.price}`}>
+                        {formatPrice(event.price)}
+                      </span>
+
+                      <Link
+                        href={`/events/${event._id}/design`}
+                        aria-label={`Edit card design for ${event.title}`}
+                        className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[#a5b185] px-3 py-2 text-xs font-semibold text-[#111614] transition hover:bg-[#bbc59a]"
+                      >
+                        <Pencil size={14} />
+                        {designsLoading && !cardDesigns[event._id]
+                          ? "Loading..."
+                          : design.stickers.length > 0 ||
+                              design.theme !== "theme-1"
+                            ? "Edit Design"
+                            : "Design Card"}
+                      </Link>
                     </div>
                   </div>
-
-                  <div className="mt-5 border-t border-[#29332d] pt-4">
-                    <span className="text-lg font-semibold text-[#c1cca5]">
-                      {formatPrice(event.price)}
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            ))}
+                </article>
+              );
+            })}
           </div>
         )}
 
-        {/* Pagination */}
         {!loading && !error && totalPages > 1 && (
           <nav
             aria-label="Event pagination"
@@ -425,6 +573,7 @@ export default function EventsPage() {
             href="/"
             className="text-sm text-[#a5b185] transition hover:text-[#d8dfc4]"
           >
+            <ArrowLeft size={14} className="mr-1 inline" />
             Back to Gather homepage
           </Link>
         </div>

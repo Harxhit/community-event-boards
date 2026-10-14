@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -14,6 +15,11 @@ import {
   Save,
   X,
   LoaderCircle,
+  Music,
+  PartyPopper,
+  Star,
+  Heart,
+  Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/src/components/auth/AuthContext";
 
@@ -23,11 +29,32 @@ interface Event {
   category: "Music" | "Workshop" | "Food" | "Sports" | "Kids";
   city: string;
   date: string;
-  isActive: boolean; 
+  isActive: boolean;
   price: number;
   description: string;
   imageUrl: string;
 }
+
+type CardTheme = "theme-1" | "theme-2" | "theme-3";
+type CardSticker = "music" | "confetti" | "star" | "heart" | "sparkles";
+
+interface CardDesign {
+  theme: CardTheme;
+  stickers: CardSticker[];
+}
+
+const defaultCardDesign: CardDesign = {
+  theme: "theme-1",
+  stickers: [],
+};
+
+const stickerIcons = {
+  music: Music,
+  confetti: PartyPopper,
+  star: Star,
+  heart: Heart,
+  sparkles: Sparkles,
+};
 
 type EventForm = {
   title: string;
@@ -35,7 +62,7 @@ type EventForm = {
   city: string;
   date: string;
   price: string;
-  isActive: boolean; 
+  isActive: boolean;
   description: string;
   imageUrl: string;
 };
@@ -46,7 +73,7 @@ const initialForm: EventForm = {
   city: "",
   date: "",
   price: "0",
-  isActive: true, 
+  isActive: true,
   description: "",
   imageUrl: "",
 };
@@ -63,6 +90,10 @@ export default function EventPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [form, setForm] = useState<EventForm>(initialForm);
+
+  const [cardDesign, setCardDesign] =
+    useState<CardDesign>(defaultCardDesign);
+  const [hasCardDesign, setHasCardDesign] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -99,6 +130,48 @@ export default function EventPage() {
   }, [id]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function fetchCardDesign() {
+      setCardDesign(defaultCardDesign);
+      setHasCardDesign(false);
+
+      try {
+        const response = await axios.get(
+          `/api/events/${id}/card-design`,
+        );
+
+        if (cancelled) return;
+
+        setCardDesign({
+          theme: response.data.theme ?? "theme-1",
+          stickers: response.data.stickers ?? [],
+        });
+        setHasCardDesign(true);
+      } catch (err) {
+        if (cancelled) return;
+
+        if (
+          axios.isAxiosError(err) &&
+          err.response?.status === 404
+        ) {
+          setCardDesign(defaultCardDesign);
+          setHasCardDesign(false);
+          return;
+        }
+
+        console.error("Unable to fetch card design", err);
+      }
+    }
+
+    void fetchCardDesign();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  useEffect(() => {
     if (!event) return;
 
     const date = new Date(event.date);
@@ -115,7 +188,7 @@ export default function EventPage() {
       date: localDate,
       price: String(event.price),
       description: event.description,
-      isActive: event.isActive, 
+      isActive: event.isActive,
       imageUrl: event.imageUrl ?? "",
     });
   }, [event]);
@@ -158,6 +231,13 @@ export default function EventPage() {
       timeStyle: "short",
     }).format(new Date(date));
 
+  const cardThemeClass =
+    cardDesign.theme === "theme-2"
+      ? "border-[#a5b185] bg-[#e9eadb] text-[#303d30]"
+      : cardDesign.theme === "theme-3"
+        ? "border-[#a879b5] bg-[#241b2c] text-[#f1f1eb]"
+        : "border-[#29332d] bg-[#111614] text-[#f1f1eb]";
+
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#0b0f0e] text-[#a5b185]">
@@ -191,7 +271,7 @@ export default function EventPage() {
   return (
     <main className="min-h-screen bg-[#0b0f0e] px-5 py-8 text-[#f1f1eb] sm:px-8 lg:px-12">
       <div className="mx-auto max-w-5xl">
-        <div className="mb-8 flex items-center justify-between gap-4">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <Link
             href="/feed"
             className="inline-flex items-center gap-2 text-sm text-[#a5b185] transition hover:text-[#d0d9b5]"
@@ -200,7 +280,7 @@ export default function EventPage() {
             Back to your feed
           </Link>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => {
@@ -214,6 +294,14 @@ export default function EventPage() {
               <span className="hidden sm:inline">Bookmark</span>
             </button>
 
+            <Link
+              href={`/events/${event._id}/design`}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#a5b185] px-4 py-2.5 text-sm font-semibold text-[#111614] transition hover:bg-[#bbc59a]"
+            >
+              <Pencil size={17} />
+              {hasCardDesign ? "Edit Design" : "Design Card"}
+            </Link>
+
             {user?.role === "Admin" && (
               <button
                 type="button"
@@ -221,7 +309,7 @@ export default function EventPage() {
                   setFormError("");
                   setEditing((current) => !current);
                 }}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#a5b185] px-4 py-2.5 text-sm font-semibold text-[#111614] transition hover:bg-[#bbc59a]"
+                className="inline-flex items-center gap-2 rounded-xl border border-[#454d43] px-4 py-2.5 text-sm font-semibold text-[#d8dfc4] transition hover:bg-[#151b17]"
               >
                 {editing ? <X size={17} /> : <Pencil size={17} />}
                 {editing ? "Cancel" : "Edit event"}
@@ -230,7 +318,7 @@ export default function EventPage() {
           </div>
         </div>
 
-        <article className="overflow-hidden rounded-3xl border border-[#29332d] bg-[#111614]">
+        <article className={`overflow-hidden rounded-3xl border ${cardThemeClass}`}>
           <div className="relative h-64 bg-[#1a211d] sm:h-96">
             {event.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -245,11 +333,37 @@ export default function EventPage() {
               </div>
             )}
 
-            <div className="absolute inset-0 bg-gradient-to-t from-[#111614] via-transparent to-black/10" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/10" />
 
             <span className="absolute left-5 top-5 rounded-full border border-white/10 bg-black/60 px-4 py-2 text-sm text-[#d8dfc4] backdrop-blur">
               {event.category}
             </span>
+
+            {cardDesign.stickers.length > 0 && (
+              <div className="absolute right-5 top-5 flex gap-2">
+                {cardDesign.stickers.map((sticker) => {
+                  const Icon = stickerIcons[sticker];
+
+                  return (
+                    <span
+                      key={sticker}
+                      className="rounded-full border border-white/15 bg-black/50 p-2 text-white backdrop-blur"
+                    >
+                      <Icon size={18} />
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8">
+              <p className="mb-2 text-xs uppercase tracking-[0.18em] text-white/75">
+                You&apos;re invited
+              </p>
+              <h1 className="text-3xl font-semibold text-white sm:text-5xl">
+                {event.title}
+              </h1>
+            </div>
           </div>
 
           <div className="p-6 sm:p-10">
@@ -264,7 +378,7 @@ export default function EventPage() {
                     maxLength={120}
                     value={form.title}
                     onChange={(e) => updateForm("title", e.target.value)}
-                    className="w-full rounded-xl border border-[#29332d] bg-[#0b0f0e] p-3 outline-none focus:border-[#a5b185]"
+                    className="w-full rounded-xl border border-[#29332d] bg-[#0b0f0e] p-3 text-[#f1f1eb] outline-none focus:border-[#a5b185]"
                   />
                 </div>
 
@@ -276,12 +390,9 @@ export default function EventPage() {
                     <select
                       value={form.category}
                       onChange={(e) =>
-                        updateForm(
-                          "category",
-                          e.target.value as Event["category"],
-                        )
+                        updateForm("category", e.target.value as Event["category"])
                       }
-                      className="w-full rounded-xl border border-[#29332d] bg-[#0b0f0e] p-3 outline-none focus:border-[#a5b185]"
+                      className="w-full rounded-xl border border-[#29332d] bg-[#0b0f0e] p-3 text-[#f1f1eb] outline-none focus:border-[#a5b185]"
                     >
                       {["Music", "Workshop", "Food", "Sports", "Kids"].map(
                         (category) => (
@@ -301,7 +412,7 @@ export default function EventPage() {
                       required
                       value={form.city}
                       onChange={(e) => updateForm("city", e.target.value)}
-                      className="w-full rounded-xl border border-[#29332d] bg-[#0b0f0e] p-3 outline-none focus:border-[#a5b185]"
+                      className="w-full rounded-xl border border-[#29332d] bg-[#0b0f0e] p-3 text-[#f1f1eb] outline-none focus:border-[#a5b185]"
                     />
                   </div>
 
@@ -314,7 +425,7 @@ export default function EventPage() {
                       type="datetime-local"
                       value={form.date}
                       onChange={(e) => updateForm("date", e.target.value)}
-                      className="w-full rounded-xl border border-[#29332d] bg-[#0b0f0e] p-3 outline-none focus:border-[#a5b185]"
+                      className="w-full rounded-xl border border-[#29332d] bg-[#0b0f0e] p-3 text-[#f1f1eb] outline-none focus:border-[#a5b185]"
                     />
                   </div>
 
@@ -329,7 +440,7 @@ export default function EventPage() {
                       step="1"
                       value={form.price}
                       onChange={(e) => updateForm("price", e.target.value)}
-                      className="w-full rounded-xl border border-[#29332d] bg-[#0b0f0e] p-3 outline-none focus:border-[#a5b185]"
+                      className="w-full rounded-xl border border-[#29332d] bg-[#0b0f0e] p-3 text-[#f1f1eb] outline-none focus:border-[#a5b185]"
                     />
                   </div>
                 </div>
@@ -343,7 +454,7 @@ export default function EventPage() {
                     value={form.imageUrl}
                     onChange={(e) => updateForm("imageUrl", e.target.value)}
                     placeholder="https://..."
-                    className="w-full rounded-xl border border-[#29332d] bg-[#0b0f0e] p-3 outline-none focus:border-[#a5b185]"
+                    className="w-full rounded-xl border border-[#29332d] bg-[#0b0f0e] p-3 text-[#f1f1eb] outline-none focus:border-[#a5b185]"
                   />
                 </div>
 
@@ -356,10 +467,8 @@ export default function EventPage() {
                     rows={5}
                     maxLength={3000}
                     value={form.description}
-                    onChange={(e) =>
-                      updateForm("description", e.target.value)
-                    }
-                    className="w-full resize-y rounded-xl border border-[#29332d] bg-[#0b0f0e] p-3 outline-none focus:border-[#a5b185]"
+                    onChange={(e) => updateForm("description", e.target.value)}
+                    className="w-full resize-y rounded-xl border border-[#29332d] bg-[#0b0f0e] p-3 text-[#f1f1eb] outline-none focus:border-[#a5b185]"
                   />
                 </div>
 
@@ -398,46 +507,36 @@ export default function EventPage() {
               </form>
             ) : (
               <>
-                <Link
-                  href={`/events/${event._id}`}
-                  className="truncate font-medium transition hover:text-[#a5b185]"
-                >
-                  {event.title}
-                </Link>
-                <p className="mt-5 whitespace-pre-wrap text-base leading-8 text-[#b0b8b1]">
+                <h2 className="text-xl font-medium">{event.title}</h2>
+
+                <p className="mt-5 whitespace-pre-wrap text-base leading-8 opacity-80">
                   {event.description}
                 </p>
 
                 <div className="mt-8 grid gap-4 sm:grid-cols-2">
-                  <div className="flex items-start gap-3 rounded-xl border border-[#29332d] bg-[#151b17] p-4">
-                    <CalendarDays
-                      size={21}
-                      className="mt-1 shrink-0 text-[#a5b185]"
-                    />
+                  <div className="flex items-start gap-3 rounded-xl border border-current/15 bg-black/[0.04] p-4">
+                    <CalendarDays size={21} className="mt-1 shrink-0 text-[#a5b185]" />
                     <div>
-                      <p className="text-xs text-[#929a96]">Date and time</p>
+                      <p className="text-xs opacity-60">Date and time</p>
                       <p className="mt-2 text-sm leading-6">
                         {formattedDate(event.date)}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-3 rounded-xl border border-[#29332d] bg-[#151b17] p-4">
-                    <MapPin
-                      size={21}
-                      className="mt-1 shrink-0 text-[#a5b185]"
-                    />
+                  <div className="flex items-start gap-3 rounded-xl border border-current/15 bg-black/[0.04] p-4">
+                    <MapPin size={21} className="mt-1 shrink-0 text-[#a5b185]" />
                     <div>
-                      <p className="text-xs text-[#929a96]">Location</p>
+                      <p className="text-xs opacity-60">Location</p>
                       <p className="mt-2 text-sm">{event.city}</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-8 flex flex-col justify-between gap-5 border-t border-[#29332d] pt-6 sm:flex-row sm:items-center">
+                <div className="mt-8 flex flex-col justify-between gap-5 border-t border-current/15 pt-6 sm:flex-row sm:items-center">
                   <div>
-                    <p className="text-sm text-[#929a96]">Entry price</p>
-                    <p className="mt-1 text-3xl font-semibold text-[#c1cca5]">
+                    <p className="text-sm opacity-60">Entry price</p>
+                    <p className="mt-1 text-3xl font-semibold text-[#a5b185]">
                       {event.price === 0
                         ? "Free"
                         : new Intl.NumberFormat("en-IN", {
@@ -448,7 +547,7 @@ export default function EventPage() {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2 text-sm text-[#929a96]">
+                  <div className="flex items-center gap-2 text-sm opacity-60">
                     <Ticket size={19} className="text-[#a5b185]" />
                     Community event
                   </div>
